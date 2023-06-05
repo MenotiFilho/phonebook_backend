@@ -1,9 +1,11 @@
 const e = require('express');
 const express = require('express');
 const morgan = require('morgan');
+const cors = require('cors');
 const app = express();
 
 app.use(express.json());
+app.use(cors());
 app.use(
 	morgan('tiny', {
 		skip: (req) => req.method === 'POST',
