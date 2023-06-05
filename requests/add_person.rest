@@ -1,7 +1,0 @@
-POST http://localhost:3002/api/persons
-content-Type: application/json
-
-{
-    "name": "Ada Lovelace",
-    "number": "39-44-5323523"
-}
