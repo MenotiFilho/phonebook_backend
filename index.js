@@ -1,3 +1,4 @@
+const e = require('express');
 const express = require('express');
 const app = express();
 
@@ -25,6 +26,12 @@ let persons = [
 		number: '39-23-6423122',
 	},
 ];
+
+function generateId() {
+	const min = 1;
+	const max = 1000000;
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
 app.get('/', (req, res) => {
 	res.send('<h1>Hello World!</h1>');
@@ -57,6 +64,32 @@ app.get('/info', (req, res) => {
 	const date = new Date().toString();
 	const info = `Phonebook has info for ${personCount} people<br><br> ${date}`;
 	res.send(info);
+});
+
+app.post('/api/persons', (request, response) => {
+	const body = request.body;
+
+	let existingPerson = persons.find((person) => person.name === body.name);
+
+	if (!body.name || !body.number) {
+		return response.status(400).json({
+			error: 'Name or number is missing',
+		});
+	} else if (existingPerson) {
+		return response.status(409).json({
+			error: 'name must be unique',
+		});
+	}
+
+	const person = {
+		id: generateId(),
+		name: body.name,
+		number: body.number,
+	};
+
+	persons = persons.concat(person);
+
+	response.json(person);
 });
 
 const PORT = 3002;
