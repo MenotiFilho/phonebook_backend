@@ -1,8 +1,28 @@
 const e = require('express');
 const express = require('express');
+const morgan = require('morgan');
 const app = express();
 
 app.use(express.json());
+app.use(
+	morgan('tiny', {
+		skip: (req) => req.method === 'POST',
+	})
+);
+
+app.use((req, res, next) => {
+	if (req.method === 'POST') {
+		morgan(
+			':method :url :status :res[content-length] - :response-time ms :post-data'
+		)(req, res, next);
+	} else {
+		next();
+	}
+});
+
+morgan.token('post-data', (req) => {
+	return JSON.stringify(req.body);
+});
 
 let persons = [
 	{
@@ -92,7 +112,7 @@ app.post('/api/persons', (request, response) => {
 	response.json(person);
 });
 
-const PORT = 3002;
+const PORT = 3001;
 app.listen(PORT, () => {
 	console.log(`Server running on port ${PORT}`);
 });
