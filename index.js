@@ -1,9 +1,17 @@
-const e = require('express');
 const express = require('express');
-const morgan = require('morgan');
-const cors = require('cors');
 const app = express();
+const cors = require('cors');
+const morgan = require('morgan');
+const {
+	connectToDatabase,
+	getAllPersons,
+	addPerson,
+	deletePerson,
+	Person,
+} = require('./mongo');
+require('dotenv').config();
 
+// Middleware
 app.use(express.json());
 app.use(express.static('dist'));
 app.use(cors());
@@ -27,95 +35,122 @@ morgan.token('post-data', (req) => {
 	return JSON.stringify(req.body);
 });
 
-let persons = [
-	{
-		id: 1,
-		name: 'Arto Hellas',
-		number: '040-123456',
-	},
-	{
-		id: 2,
-		name: 'Ada Lovelace',
-		number: '39-44-5323523',
-	},
-	{
-		id: 3,
-		name: 'Dan Abramov',
-		number: '12-43-234345',
-	},
-	{
-		id: 4,
-		name: 'Mary Poppendieck',
-		number: '39-23-6423122',
-	},
-];
+// Error handling middleware
+const errorHandler = (err, req, res, next) => {
+	console.error('Error:', err);
 
-function generateId() {
-	const min = 1;
-	const max = 1000000;
-	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+	let statusCode = 500;
+	let errorMessage = 'Internal Server Error';
 
+	if (err.statusCode) {
+		statusCode = err.statusCode;
+		errorMessage = err.message;
+	}
+
+	res.status(statusCode).json({ error: errorMessage });
+};
+
+app.use(errorHandler);
+
+// Routes
 app.get('/', (req, res) => {
 	res.send('<h1>Hello World!</h1>');
 });
 
-app.get('/api/persons', (req, res) => {
-	res.json(persons);
-});
-
-app.get('/api/persons/:id', (request, response) => {
-	const id = Number(request.params.id);
-	const person = persons.find((person) => person.id === id);
-
-	if (person) {
-		response.json(person);
-	} else {
-		response.status(404).end();
-	}
-});
-
-app.delete('/api/persons/:id', (request, response) => {
-	const id = Number(request.params.id);
-	persons = persons.filter((person) => person.id !== id);
-
-	response.status(204).end();
-});
-
-app.get('/info', (req, res) => {
-	const personCount = persons.length;
-	const date = new Date().toString();
-	const info = `Phonebook has info for ${personCount} people<br><br> ${date}`;
-	res.send(info);
-});
-
-app.post('/api/persons', (request, response) => {
-	const body = request.body;
-
-	let existingPerson = persons.find((person) => person.name === body.name);
-
-	if (!body.name || !body.number) {
-		return response.status(400).json({
-			error: 'Name or number is missing',
+app.get('/api/persons', (req, res, next) => {
+	getAllPersons()
+		.then((persons) => {
+			res.json(persons);
+		})
+		.catch((error) => {
+			next(error);
 		});
-	} else if (existingPerson) {
-		return response.status(409).json({
-			error: 'name must be unique',
-		});
-	}
-
-	const person = {
-		id: generateId(),
-		name: body.name,
-		number: body.number,
-	};
-
-	persons = persons.concat(person);
-
-	response.json(person);
 });
 
+app.get('/api/persons/:_id', (req, res, next) => {
+	const id = req.params._id;
+
+	Person.findById(id)
+		.then((person) => {
+			if (person) {
+				res.json(person);
+			} else {
+				const error = new Error('Person not found');
+				error.statusCode = 404;
+				throw error;
+			}
+		})
+		.catch((error) => {
+			next(error);
+		});
+});
+
+app.delete('/api/persons/:_id', (req, res, next) => {
+	const id = req.params._id;
+
+	deletePerson(id)
+		.then(() => {
+			res.status(204).end();
+		})
+		.catch((error) => {
+			next(error);
+		});
+});
+
+app.get('/info', (req, res, next) => {
+	Person.countDocuments()
+		.then((count) => {
+			const info = {
+				totalPersons: count,
+				timestamp: new Date(),
+			};
+			res.json(info);
+		})
+		.catch((error) => {
+			next(error);
+		});
+});
+
+app.put('/api/persons/:_id', (req, res, next) => {
+	const id = req.params._id;
+	const { phone } = req.body;
+
+	Person.findByIdAndUpdate(id, { phone }, { new: true })
+		.then((updatedPerson) => {
+			if (updatedPerson) {
+				res.json(updatedPerson);
+			} else {
+				const error = new Error('Person not found');
+				error.statusCode = 404;
+				throw error;
+			}
+		})
+		.catch((error) => {
+			next(error);
+		});
+});
+
+app.post('/api/persons', (req, res, next) => {
+	const { name, phone } = req.body;
+
+	addPerson(name, phone)
+		.then((person) => {
+			res.json(person);
+		})
+		.catch((error) => {
+			next(error);
+		});
+});
+
+// Start the server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-	console.log(`Server running on port ${PORT}`);
-});
+
+connectToDatabase()
+	.then(() => {
+		app.listen(PORT, () => {
+			console.log(`Server running on port ${PORT}`);
+		});
+	})
+	.catch((error) => {
+		console.error('Error connecting to the database:', error);
+	});

@@ -1,57 +1,51 @@
 const mongoose = require('mongoose');
+require('dotenv').config();
 
-if (process.argv.length < 3) {
-	console.log('give password as argument');
-	process.exit(1);
-}
+const connectToDatabase = () => {
+	const url = `mongodb+srv://menotimfilho:${process.env.MONGODB_PASSWORD}@clusterlista.7u18oph.mongodb.net/phonebook?retryWrites=true&w=majority`;
 
-const password = process.argv[2];
-
-const url = `mongodb+srv://menotimfilho:${password}@clusterlista.7u18oph.mongodb.net/phonebook?retryWrites=true&w=majority`;
-
-mongoose.set('strictQuery', false);
-mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true });
+	return mongoose.connect(url, {
+		useNewUrlParser: true,
+		useUnifiedTopology: true,
+	});
+};
 
 const personSchema = new mongoose.Schema({
 	name: String,
 	phone: String,
 });
 
+personSchema.set('toJSON', {
+	transform: (document, returnedObject) => {
+		returnedObject.id = returnedObject._id.toString();
+		delete returnedObject._id;
+		delete returnedObject.__v;
+	},
+});
+
 const Person = mongoose.model('Person', personSchema);
 
-if (process.argv.length === 3) {
-	Person.find({})
-		.then((persons) => {
-			console.log('phonebook:');
-			persons.forEach((person) => {
-				console.log(`${person.name} ${person.phone}`);
-			});
-			mongoose.connection.close();
-		})
-		.catch((error) => {
-			console.error('Error listing phonebook entries:', error);
-			mongoose.connection.close();
-		});
-} else if (process.argv.length === 5) {
-	const name = process.argv[3];
-	const phone = process.argv[4];
+const getAllPersons = () => {
+	return Person.find({});
+};
 
+const addPerson = (name, phone) => {
 	const person = new Person({
 		name: name,
 		phone: phone,
 	});
 
-	person
-		.save()
-		.then(() => {
-			console.log(`added ${name} number ${phone} to phonebook`);
-			mongoose.connection.close();
-		})
-		.catch((error) => {
-			console.error('Error adding a new entry to the phonebook:', error);
-			mongoose.connection.close();
-		});
-} else {
-	console.log('Usage: node mongo.js <password> [<name> <phone>]');
-	mongoose.connection.close();
-}
+	return person.save();
+};
+
+const deletePerson = (id) => {
+	return Person.findByIdAndDelete(id);
+};
+
+module.exports = {
+	connectToDatabase,
+	getAllPersons,
+	addPerson,
+	deletePerson,
+	Person,
+};
